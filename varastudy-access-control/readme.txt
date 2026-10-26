@@ -1,41 +1,47 @@
 VaraStudy Vault Access Control
-==============================
-
-Version: 1.0.3
 
 Purpose
--------
-- Public visitors can view published resources across courses and semesters.
-- Contributors can submit and manage content within their assigned course groups and semesters, subject to permissions.
-- Contributor submissions are sent to Pending Review; administrators control publication.
-- Administrators assign course groups, semesters, and contributor active status through Users -> Edit User.
-- Administrators can record the current academic year through VaraStudy Access. Academic-year rollover is manual.
+- Public visitors can view published resources across all courses and semesters.
+- Contributors can submit/manage only content in their assigned course groups and semesters.
+- Contributor submissions are sent to Pending Review; only administrators can publish.
+- Admins assign groups and semesters on Users -> Edit User.
+- Admins can record the current academic year from VaraStudy Access; rollover is manual.
 
-Existing-site requirements and assumptions
-------------------------------------------
+Existing-site assumptions
 - Course taxonomy slug: course_group
 - Custom post types: subjects, study-materials, question-papers
-- Subject semester ACF field/meta key: semester
-- Resource-to-subject relationship ACF field/meta key: subject
-- Resources may also have course_group terms assigned directly.
+- Subject semester stored in ACF field/meta key: semester
+- Resource-to-subject relationship stored in ACF field/meta key: subject
+- ACF Question Paper semester field key: field_6ad34225ddea5
+- ACF Subject semester field key: field_6ad33bd28e7e0
+- ACF Question Paper subject field key: field_6ad3405a22db5
+- ACF Study Material subject field key: field_6ad33d167a5ce
+- The course_group taxonomy is expected to be assigned to Subject posts.
 
-Installation
-------------
-1. Back up your WordPress site and database.
-2. Upload the installable plugin ZIP through Plugins -> Add New Plugin -> Upload Plugin.
-3. Activate VaraStudy Vault Access Control.
-4. Create contributor accounts using the VaraStudy Contributor role.
-5. Edit each contributor profile and configure permitted course groups, semesters, and active status.
-6. Test with a separate contributor account before using real accounts.
+Version 1.0.5 changes
+- Excludes Draft and Pending Review Subjects from contributor subject selectors; administrators retain unrestricted choices.
 
-Moderation and permissions
---------------------------
-Contributors cannot publish submissions. Attempts to publish are changed to Pending Review. Administrators can review pending entries through the relevant custom post type lists.
+Version 1.0.4 changes
+- Filters the Subject semester dropdown to the active contributor's assigned semesters.
+- Filters Question Paper semester choices to assigned semesters.
+- Filters Subject Post Object selectors for Question Papers and Study Materials by assigned course groups and semesters.
+- Adds post-save validation after ACF field saving; invalid submissions are kept as drafts and flagged with an error meta value.
+- Question Paper semester must match both the contributor assignment and the linked Subject semester.
+- Administrators retain unrestricted choices and access.
 
-Development status
-------------------
-Version 1.0.3 includes changes to contributor editing permissions for their own draft and pending submissions. Approved/published content remains restricted according to the plugin's permissions.
+Installation / update
+1. Back up the WordPress site and database first.
+2. Test on a staging site or backup before production.
+3. Upload this ZIP via Plugins -> Add New -> Upload Plugin, replacing/updating the existing plugin.
+4. Test with a separate contributor account and an administrator account.
 
-Test on a staging site or backup before production use. Verify access restrictions, submission moderation, course and semester assignments, and compatibility with your site's custom post types and ACF fields.
+Test cases
+- Contributor with one assigned group and semesters 1-2 sees only semesters 1-2 in Subject and Question Paper fields.
+- Subject selectors show only Subjects in the assigned course_group terms and allowed semesters.
+- A crafted save with an unauthorized semester/subject is moved to Draft and flagged.
+- Administrators can still select all semesters and subjects.
 
-The plugin assumes that course_group terms are associated with Subject posts and that the subject ACF field references a Subject. Academic-year rollover does not automatically move content.
+Validation status
+- The user reports testing v1.0.5 in their WordPress/ACF installation: assigned-semester filtering, subject-selector filtering, editing own Draft/Pending content, and administrator access behaved as expected.
+- The PHP file passes a syntax check and the ZIP archive passes an integrity check.
+- These tests cover the scenarios listed above; they do not guarantee that every possible unauthorized request path has been tested. Keep a backup and use staging before production updates.
