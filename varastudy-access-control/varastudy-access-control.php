@@ -2,8 +2,8 @@
 /**
  * Plugin Name: VaraStudy Vault Access Control
  * Description: Course, semester and contributor access controls with administrator moderation for VaraStudy Vault.
- * Version: 1.0.3
- * Author: VaraStudy Vault
+ * Version: 1.0.5
+ * Author: Vara Prasad Jada
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Text Domain: varastudy-access-control
@@ -12,7 +12,7 @@
 if (!defined('ABSPATH')) { exit; }
 
 final class VaraStudy_Vault_Access_Control {
-    const VERSION = '1.0.3';
+    const VERSION = '1.0.5';
     const ROLE = 'varastudy_contributor';
     const META_GROUPS = '_vsvac_course_groups';
     const META_SEMESTERS = '_vsvac_semesters';
@@ -31,6 +31,12 @@ final class VaraStudy_Vault_Access_Control {
         add_action('admin_notices', array(__CLASS__, 'admin_notices'));
         add_action('admin_init', array(__CLASS__, 'protect_admin_screens'));
         add_action('save_post', array(__CLASS__, 'validate_save'), 1, 3);
+        // Restrict ACF editor choices for contributors; server-side validation runs after ACF saves fields.
+        add_filter('acf/load_field/key=field_6ad34225ddea5', array(__CLASS__, 'filter_semester_choices'));
+        add_filter('acf/load_field/key=field_6ad33bd28e7e0', array(__CLASS__, 'filter_semester_choices'));
+        add_filter('acf/fields/post_object/query/key=field_6ad3405a22db5', array(__CLASS__, 'filter_subject_choices'), 10, 3);
+        add_filter('acf/fields/post_object/query/key=field_6ad33d167a5ce', array(__CLASS__, 'filter_subject_choices'), 10, 3);
+        add_action('save_post', array(__CLASS__, 'validate_saved_scope'), 30, 3);
         add_filter('map_meta_cap', array(__CLASS__, 'map_post_caps'), 10, 4);
         add_action('add_meta_boxes', array(__CLASS__, 'add_scope_metabox'));
         add_action('save_post', array(__CLASS__, 'save_scope_metabox'), 20, 3);
@@ -180,6 +186,116 @@ final class VaraStudy_Vault_Access_Control {
         if ($pagenow === 'edit.php' && (!isset($_GET['post_type']) || !in_array(sanitize_key(wp_unslash($_GET['post_type'])), self::CPTS, true))) wp_die('You do not have permission to access this content list.');
     }
 
+    /** Return the current contributor's assigned group and semester IDs. */
+    private static function current_assignment() {
+        $user_id = get_current_user_id();
+        return array(
+            'groups' => array_values(array_filter(array_map('intval', (array) get_user_meta($user_id, self::META_GROUPS, true)))),
+            'semesters' => array_values(array_filter(array_map('intval', (array) get_user_meta($user_id, self::META_SEMESTERS, true)))),
+        );
+    }
+
+    /** Limit ACF semester dropdowns to assigned semesters for active contributors. */
+    public static function filter_semester_choices($field) {
+        if (self::is_admin_user() || !self::contributor()) return $field;
+        $assignment = self::current_assignment();
+        $choices = array();
+        if (get_user_meta(get_current_user_id(), self::META_ACTIVE, true) !== '0') {
+            foreach ((array) $field['choices'] as $value => $label) {
+                if (in_array((int) $value, $assignment['semesters'], true)) $choices[$value] = $label;
+            }
+        }
+        $field['choices'] = $choices;
+        return $field;
+    }
+
+    /** Limit ACF Subject Post Object fields to subjects in assigned course groups and semesters. */
+    public static function filter_subject_choices($args, $field, $post_id) {
+        if (self::is_admin_user() || !self::contributor()) return $args;
+        $assignment = self::current_assignment();
+        if (get_user_meta(get_current_user_id(), self::META_ACTIVE, true) === '0' || !$assignment['groups'] || !$assignment['semesters']) {
+            $args['post__in'] = array(0);
+            return $args;
+        }
+        $args['post_type'] = array('subjects');
+        // Contributors may link only published subjects; administrators bypass this filter above.
+        $args['post_status'] = array('publish');
+        $args['tax_query'] = isset($args['tax_query']) && is_array($args['tax_query']) ? $args['tax_query'] : array();
+        $args['tax_query'][] = array(
+            'taxonomy' => 'course_group',
+            'field' => 'term_id',
+            'terms' => $assignment['groups'],
+            'operator' => 'IN',
+        );
+        $args['meta_query'] = isset($args['meta_query']) && is_array($args['meta_query']) ? $args['meta_query'] : array();
+        $semester_queries = array('relation' => 'OR');
+        foreach ($assignment['semesters'] as $semester) {
+            $semester_queries[] = array(
+                'key' => 'semester',
+                'value' => (string) $semester,
+                'compare' => '=',
+            );
+        }
+        $args['meta_query'][] = $semester_queries;
+        return $args;
+    }
+
+    /** Validate saved ACF values after ACF's save_post handler has persisted them. */
+    public static function validate_saved_scope($post_id, $post, $update) {
+        if (!$post || wp_is_post_revision($post_id) || (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE)) return;
+        if (!in_array($post->post_type, self::CPTS, true) || self::is_admin_user() || !self::contributor()) return;
+        if (get_user_meta(get_current_user_id(), self::META_ACTIVE, true) === '0') {
+            self::reject_scope($post_id, 'Your contributor access is suspended. This submission was kept as a draft.');
+            return;
+        }
+
+        $assignment = self::current_assignment();
+        if (!$assignment['groups'] || !$assignment['semesters']) {
+            self::reject_scope($post_id, 'No course group or semester assignment is configured for your account.');
+            return;
+        }
+
+        if ($post->post_type === 'subjects') {
+            $scope = self::post_scope($post_id, 'subjects');
+            $valid = $scope['valid']
+                && (bool) array_intersect($assignment['groups'], $scope['groups'])
+                && (bool) array_intersect($assignment['semesters'], $scope['semesters']);
+        } else {
+            $subject_id = self::linked_subject_id($post_id);
+            $subject_scope = $subject_id ? self::post_scope($subject_id, 'subjects') : array('groups'=>array(), 'semesters'=>array(), 'valid'=>false);
+            $valid = $subject_id && $subject_scope['valid']
+                && (bool) array_intersect($assignment['groups'], $subject_scope['groups'])
+                && (bool) array_intersect($assignment['semesters'], $subject_scope['semesters']);
+
+            // Question Papers have their own semester field; it must match the linked subject.
+            if ($valid && $post->post_type === 'question-papers') {
+                $paper_semester = get_field('semester', $post_id, false);
+                if ($paper_semester === null || $paper_semester === '') $paper_semester = get_post_meta($post_id, 'semester', true);
+                $paper_semester = is_numeric($paper_semester) ? (int) $paper_semester : 0;
+                $valid = $paper_semester > 0
+                    && in_array($paper_semester, $assignment['semesters'], true)
+                    && in_array($paper_semester, $subject_scope['semesters'], true);
+            }
+        }
+
+        if (!$valid) {
+            self::reject_scope($post_id, 'This submission uses a course group, subject, or semester outside your assigned scope. It has been kept as a draft for correction.');
+            return;
+        }
+        update_post_meta($post_id, '_vsvac_scope_was_valid', '1');
+        delete_post_meta($post_id, '_vsvac_scope_error');
+    }
+
+    private static function reject_scope($post_id, $message) {
+        $post = get_post($post_id);
+        if ($post && !in_array($post->post_status, array('trash', 'auto-draft'), true) && $post->post_status !== 'draft') {
+            remove_action('save_post', array(__CLASS__, 'validate_saved_scope'), 30);
+            wp_update_post(array('ID' => $post_id, 'post_status' => 'draft'));
+            add_action('save_post', array(__CLASS__, 'validate_saved_scope'), 30, 3);
+        }
+        update_post_meta($post_id, '_vsvac_scope_error', $message);
+    }
+
     private static function linked_subject_id($post_id) {
         $subject = function_exists('get_field') ? get_field('subject', $post_id, false) : get_post_meta($post_id, 'subject', true);
         if (is_object($subject) && isset($subject->ID)) return (int)$subject->ID;
@@ -306,6 +422,7 @@ final class VaraStudy_Vault_Access_Control {
             remove_action('save_post', array(__CLASS__, 'validate_save'), 1);
             wp_update_post(array('ID'=>$post_id,'post_status'=>'draft'));
             add_action('save_post', array(__CLASS__, 'validate_save'), 1, 3);
+        // Restrict ACF editor choices for contributors; server-side validation runs after ACF saves fields.
             return;
         }
         if ($update && !self::user_can_manage_scope(get_current_user_id(), $post_id, $post->post_type)) {
@@ -314,6 +431,7 @@ final class VaraStudy_Vault_Access_Control {
                 remove_action('save_post', array(__CLASS__, 'validate_save'), 1);
                 wp_update_post(array('ID'=>$post_id, 'post_status'=>'draft'));
                 add_action('save_post', array(__CLASS__, 'validate_save'), 1, 3);
+        // Restrict ACF editor choices for contributors; server-side validation runs after ACF saves fields.
             }
             update_post_meta($post_id, '_vsvac_scope_error', 'This item is outside your assigned group/semester or its scope is incomplete.');
         }
