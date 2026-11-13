@@ -46,6 +46,7 @@ Sites that run the VaraStudy Vault theme and let several contributors add study 
 
 ## Recent changes
 
+- **1.0.6:** Adds course-group assignment handling for contributor taxonomy selections across Subjects, Study Materials, and Question Papers. Administrators retain unrestricted access.
 - **1.0.5:** Excludes Draft and Pending Review subjects from contributor subject selectors. Administrators keep unrestricted choices.
 - **1.0.4:** Filters semester and subject selectors to a contributor's assigned semesters and course groups. Adds post-save validation, so invalid submissions are kept as drafts and flagged.
 
