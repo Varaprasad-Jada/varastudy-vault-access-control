@@ -1,13 +1,25 @@
-VaraStudy Vault Access Control
+=== VaraStudy Vault Access Control ===
+Contributors: varaprasadjada
+Tags: access-control, user-roles, content-restriction, permissions
+Requires at least: 6.0
+Tested up to: 7.1
+Requires PHP: 7.4
+Stable tag: 1.0.6
+License: GPL-3.0-or-later
+License URI: https://www.gnu.org/licenses/gpl-3.0.html
 
-Purpose
+Course and semester access controls with contributor restrictions and administrator moderation.
+
+== Purpose ==
+
 - Public visitors can view published resources across all courses and semesters.
-- Contributors can submit/manage only content in their assigned course groups and semesters.
+- Contributors can submit and manage only content in their assigned course groups and semesters.
 - Contributor submissions are sent to Pending Review; only administrators can publish.
-- Admins assign groups and semesters on Users -> Edit User.
-- Admins can record the current academic year from VaraStudy Access; rollover is manual.
+- Administrators assign course groups and semesters under Users -> Edit User.
+- Administrators can record the current academic year from VaraStudy Access; academic year rollover is manual.
 
-Existing-site assumptions
+== Existing-Site Assumptions ==
+
 - Course taxonomy slug: course_group
 - Custom post types: subjects, study-materials, question-papers
 - Subject semester stored in ACF field/meta key: semester
@@ -18,10 +30,16 @@ Existing-site assumptions
 - ACF Study Material subject field key: field_6ad33d167a5ce
 - The course_group taxonomy is expected to be assigned to Subject posts.
 
-Version 1.0.5 changes
+== Changelog ==
+
+= 1.0.6 =
+- Locks contributors to their assigned course group in the native Course Groups taxonomy panel.
 - Excludes Draft and Pending Review Subjects from contributor subject selectors; administrators retain unrestricted choices.
 
-Version 1.0.4 changes
+= 1.0.5 =
+- Excludes Draft and Pending Review Subjects from contributor subject selectors; administrators retain unrestricted choices.
+
+= 1.0.4 =
 - Filters the Subject semester dropdown to the active contributor's assigned semesters.
 - Filters Question Paper semester choices to assigned semesters.
 - Filters Subject Post Object selectors for Question Papers and Study Materials by assigned course groups and semesters.
@@ -29,19 +47,23 @@ Version 1.0.4 changes
 - Question Paper semester must match both the contributor assignment and the linked Subject semester.
 - Administrators retain unrestricted choices and access.
 
-Installation / update
+== Installation / Update ==
+
 1. Back up the WordPress site and database first.
 2. Test on a staging site or backup before production.
-3. Upload this ZIP via Plugins -> Add New -> Upload Plugin, replacing/updating the existing plugin.
+3. Upload the plugin ZIP via Plugins -> Add New -> Upload Plugin, replacing/updating the existing plugin.
 4. Test with a separate contributor account and an administrator account.
 
-Test cases
-- Contributor with one assigned group and semesters 1-2 sees only semesters 1-2 in Subject and Question Paper fields.
-- Subject selectors show only Subjects in the assigned course_group terms and allowed semesters.
-- A crafted save with an unauthorized semester/subject is moved to Draft and flagged.
+== Test Cases ==
+
+- A contributor with one assigned group and semesters 1-2 sees only semesters 1-2 in Subject and Question Paper fields.
+- Subject selectors show only Subjects in the assigned course group and allowed semesters.
+- Contributors can select only their assigned course group in the native Course Groups taxonomy panel.
+- A crafted save with an unauthorized semester or subject is moved to Draft and flagged.
 - Administrators can still select all semesters and subjects.
 
-Validation status
-- The user reports testing v1.0.5 in their WordPress/ACF installation: assigned-semester filtering, subject-selector filtering, editing own Draft/Pending content, and administrator access behaved as expected.
-- The PHP file passes a syntax check and the ZIP archive passes an integrity check.
-- These tests cover the scenarios listed above; they do not guarantee that every possible unauthorized request path has been tested. Keep a backup and use staging before production updates.
+== Validation Status ==
+
+The plugin has been tested in the author's WordPress/ACF installation. The author reports that assigned-semester filtering, subject-selector filtering, editing own Draft/Pending content, and administrator access behaved as expected.
+
+The tests cover the scenarios listed above but do not guarantee that every possible unauthorized request path has been tested. Back up the site and use staging before production updates.
